@@ -12,7 +12,6 @@ uploads/
 backend/uploads/
 !backend/uploads/.gitkeep
 
-# Local AI agent instruction (chỉ dùng cục bộ, không push lên Git)
 AGENTS.md
 
 # Logs & temp
