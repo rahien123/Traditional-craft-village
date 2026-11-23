@@ -1,0 +1,40 @@
+{
+  "name": "vcraft-backend",
+  "version": "1.0.0",
+  "description": "vCraft - Backend API",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file=.env src/server.js",
+    "start": "node --env-file=.env src/server.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "seed": "prisma db seed",
+    "seed:reset": "node -e \"import('node:fs').then(fs => fs.rmSync('uploads', { recursive: true, force: true }))\" && prisma migrate reset --force",
+    "test:unit": "node --test \"tests/unit/*.test.js\"",
+    "test:integration": "node --env-file=.env --test \"tests/integration/*.test.js\"",
+    "test": "node --env-file=.env.test --test \"tests/**/*.test.js\"",
+    "test:db:prepare": "dotenv -e .env.test -- prisma migrate deploy"
+  },
+  "prisma": {
+    "seed": "node --env-file=.env prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "bcrypt": "^5.1.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.0.1",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.33.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^8.0.0",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.0",
+    "prisma": "^6.4.1"
+  }
+}

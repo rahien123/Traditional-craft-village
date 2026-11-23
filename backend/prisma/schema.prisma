@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ARTISAN
+  BUYER
+}
+
+enum UserStatus {
+  PENDING    // Hộ gia đình vừa đăng ký, chờ Ban quản lý duyệt
+  ACTIVE     // Đang hoạt động bình thường
+  SUSPENDED  // Bị khoá (chặn ngay ở auth.middleware)
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT_TO_ARTISANS
+  ARTISANS_BIDDING
+  BUYER_ACCEPTED
+  IN_PRODUCTION
+  DELIVERED
+  CANCELLED
+}
+
+enum BidStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  IN_PRODUCTION
+  DELIVERED
+  CANCELLED  // Tự gán khi Buyer/Admin huỷ QuoteRequest trước khi IN_PRODUCTION
+}
+
+enum NewsCategory {
+  MATERIAL_PRICE // Giá nguyên vật liệu
+  POWER_OUTAGE   // Lịch cúp điện
+  SUPPORT_POLICY // Chính sách hỗ trợ
+  GENERAL        // Tin chung
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  email          String          @unique
+  passwordHash   String
+  fullName       String
+  phone          String?
+  role           Role            @default(BUYER)
+  status         UserStatus      @default(ACTIVE)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  artisanProfile ArtisanProfile?
+  quoteRequests  QuoteRequest[]
+  newsPosts      News[]
+
+  @@index([role, status])
+}
+
+model ArtisanProfile {
+  id             Int               @id @default(autoincrement())
+  userId         Int               @unique
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopName       String
+  slug           String            @unique
+  familyHistory  String?           @db.Text
+  craftSpecialty String?           // VD: Gốm men lam, Gốm đất nung
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  isOpenForVisit Boolean           @default(false)
+  openingHours   String?           // VD: "08:00 - 17:30"
+  coverImage     String?           // URL bản full (/uploads/full/<uuid>.webp); thumb suy ra bằng thumbOf()
+  galleryImages  Json              @default("[]") // [{ url, thumbnailUrl }]
+  certificates   Json              @default("[]") // [{ title, issuer, imageUrl }]
+  verifiedAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  products       Product[]
+  batches        ProductionBatch[]
+  invitations    QuoteInvitation[]
+  bids           QuoteBid[]
+
+  @@index([isOpenForVisit])
+}
+
+model Category {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  slug          String         @unique
+  description   String?
+  products      Product[]
+  quoteRequests QuoteRequest[]
+}
+
+model ProductionBatch {
+  id            Int             @id @default(autoincrement())
+  artisanId     Int
+  artisan       ArtisanProfile  @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  batchCode     String          @unique // VD: VCRAFT-K7Q2M9XB (8 ký tự ngẫu nhiên, dùng sinh QR động)
+  title         String
+  story         String?         @db.Text
+  startDate     DateTime
+  completedDate DateTime?
+  createdAt     DateTime        @default(now())
+
+  logs          ProductionLog[]
+  products      Product[]
+
+  @@index([artisanId])
+}
+
+model ProductionLog {
+  id           Int             @id @default(autoincrement())
+  batchId      Int
+  batch        ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  stepOrder    Int
+  stageName    String          // VD: Nhào đất, Vuốt gốm, Nung lò, Thành phẩm
+  description  String?         @db.Text
+  loggedAt     DateTime        @default(now())
+  imageUrl     String?         // URL bản full (/uploads/full/<uuid>.webp)
+  thumbnailUrl String?         // Server tự tính = imageUrl ? thumbOf(imageUrl) : null
+
+  @@unique([batchId, stepOrder]) // Không trùng thứ tự trong một lô (trùng → 409)
+}
+
+model Product {
+  id          Int              @id @default(autoincrement())
+  artisanId   Int
+  artisan     ArtisanProfile   @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  categoryId  Int
+  category    Category         @relation(fields: [categoryId], references: [id])
+  batchId     Int?             // Nhiều sản phẩm dùng chung 1 batchId -> chung mã QR
+  batch       ProductionBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  name        String
+  slug        String           @unique
+  price       Int              // VND, tối đa 2.000.000.000 (Zod chặn)
+  description String?          @db.Text
+  images      Json             @default("[]") // [{ url, thumbnailUrl }]
+  isUnique    Boolean          @default(false) // Sản phẩm độc bản
+  isActive    Boolean          @default(true)  // false = đã ẩn
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([artisanId, isActive])
+  @@index([categoryId, isActive])
+}
+
+model QuoteRequest {
+  id               Int               @id @default(autoincrement())
+  buyerId          Int
+  buyer            User              @relation(fields: [buyerId], references: [id])
+  categoryId       Int?
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  title            String            // VD: Đặt 5.000 cốc in logo Trường ĐH Công nghệ
+  description      String            @db.Text
+  totalQuantity    Int
+  targetBudget     Float?            // Ngân sách gợi ý (VND), tối đa 1.000.000.000.000 (Zod chặn), không dùng tính toán
+  deliveryDeadline DateTime          // Hạn giao hàng người mua mong muốn
+  status           QuoteStatus       @default(DRAFT)
+  version          Int               @default(0) // Khoá lạc quan: mọi thao tác ghi liên quan đơn (kể cả bid) đều tăng
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  invitations      QuoteInvitation[]
+  bids             QuoteBid[]
+
+  @@index([buyerId, status])
+}
+
+model QuoteInvitation {
+  id             Int            @id @default(autoincrement())
+  quoteRequestId Int
+  quoteRequest   QuoteRequest   @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  artisanId      Int
+  artisan        ArtisanProfile @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  invitedAt      DateTime       @default(now())
+
+  @@unique([quoteRequestId, artisanId])
+}
+
+model QuoteBid {
+  id                      Int            @id @default(autoincrement())
+  quoteRequestId          Int
+  quoteRequest            QuoteRequest   @relation(fields: [quoteRequestId], references: [id], onDelete: Cascade)
+  artisanId               Int
+  artisan                 ArtisanProfile @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  unitPrice               Int            // VND/sản phẩm
+  offeredQuantity         Int            // Số lượng tối đa nghệ nhân nhận làm
+  acceptedQuantity        Int?           // Số lượng thực tế được phân bổ (<= offeredQuantity)
+  estimatedCompletionDate DateTime       // Ngày dự kiến hoàn thành nghệ nhân cam kết
+  note                    String?        @db.Text
+  status                  BidStatus      @default(SUBMITTED)
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  @@unique([quoteRequestId, artisanId]) // Mỗi hộ một chào giá cho mỗi đơn
+}
+
+model News {
+  id          Int          @id @default(autoincrement())
+  authorId    Int
+  author      User         @relation(fields: [authorId], references: [id])
+  title       String
+  slug        String       @unique
+  category    NewsCategory @default(GENERAL)
+  content     String       @db.Text
+  imageUrl    String?      // URL bản full (/uploads/full/<uuid>.webp); thumb suy ra bằng thumbOf()
+  publishedAt DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([category, publishedAt])
+}

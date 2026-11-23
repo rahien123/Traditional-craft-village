@@ -1,0 +1,11 @@
+export const ROLES = {
+  ADMIN: 'ADMIN',
+  ARTISAN: 'ARTISAN',
+  BUYER: 'BUYER',
+};
+
+export const USER_STATUS = {
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED',
+};
