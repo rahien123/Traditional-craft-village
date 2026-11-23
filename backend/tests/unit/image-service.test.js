@@ -1,5 +1,7 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import sharp from 'sharp';
 import {
   validateImageBuffer,
@@ -9,12 +11,21 @@ import {
 import { UnsupportedMediaTypeError } from '../../src/common/errors/AppError.js';
 
 describe('Unit Test: image.service.js', () => {
+  const createdFiles = [];
+
+  after(() => {
+    // Dọn dẹp toàn bộ file test vừa sinh ra, tránh tích tụ rác trong thư mục uploads/
+    for (const fileUrl of createdFiles) {
+      const fullPath = path.resolve('.' + fileUrl);
+      const thumbPath = path.resolve('.' + fileUrl.replace('/uploads/full/', '/uploads/thumb/'));
+      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+      if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath);
+    }
+  });
+
   it('validateImageBuffer ném UnsupportedMediaTypeError khi buffer không phải ảnh', async () => {
     const fakeBuffer = Buffer.from('this is not an image');
-    await assert.rejects(
-      async () => validateImageBuffer(fakeBuffer),
-      UnsupportedMediaTypeError
-    );
+    await assert.rejects(async () => validateImageBuffer(fakeBuffer), UnsupportedMediaTypeError);
   });
 
   it('validateImageBuffer chấp nhận buffer ảnh hợp lệ (PNG/JPEG/WebP)', async () => {
@@ -46,6 +57,8 @@ describe('Unit Test: image.service.js', () => {
       .toBuffer();
 
     const result = await processImage(validPng);
+    createdFiles.push(result.url);
+
     assert.ok(result.url.startsWith('/uploads/full/'));
     assert.ok(result.url.endsWith('.webp'));
     assert.ok(result.thumbnailUrl.startsWith('/uploads/thumb/'));
@@ -58,6 +71,7 @@ describe('Unit Test: image.service.js', () => {
       fallbackTitle: 'Ảnh thử nghiệm',
       categoryName: 'Test',
     });
+    createdFiles.push(result.url);
 
     assert.ok(result.url.startsWith('/uploads/full/'));
     assert.ok(result.url.endsWith('.webp'));
