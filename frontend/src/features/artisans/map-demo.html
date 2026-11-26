@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vCraft · Triển lãm gốm Bát Tràng</title>
+<link rel="stylesheet" href="../../assets/leaflet/leaflet.css">
+<link rel="stylesheet" href="./map-demo.css">
+<header><a class="brand" href="#/">vCraft</a><span>Triển lãm số Bát Tràng</span>
+<nav aria-label="Điều hướng chính"><a href="#/">Trang chủ</a><a href="#/products">Tác phẩm</a><a href="#/artisans">Xưởng gốm</a><a href="#/map">Bản đồ</a></nav></header>
+<main>
+    <section id="mapwrap" aria-label="Vị trí các xưởng">
+        <div id="sketch"></div>
+        <div id="preview" hidden></div>
+        <div id="map" hidden></div><span id="note">Sơ đồ theo tọa độ mẫu</span>
+    </section>
+    <aside>
+        <section id="panel" aria-live="polite"></section>
+        <footer>Dữ liệu minh họa · <a href="../../../../backend/prisma/seed-assets/CREDITS.md">Nguồn ảnh minh họa</a></footer>
+    </aside>
+</main>
+<script src="./map-demo-data.js"></script>
+<script src="./public-wireframes.js"></script>
+<script src="./map-demo.js"></script>
+
+</html>
